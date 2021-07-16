@@ -3,37 +3,39 @@
 #include "tree.hpp"
 #include "func_enum.h"
 #include "latex_dump.hpp"
+#include "parser.hpp"
 
 Node *Shrink(FILE *latex, Node *node, bool &isChanged);
 
-Node *Fix_mul(FILE* latex, Node *node, bool &isChanged);
+Node *Fix_mul(FILE *latex, Node *node, bool &isChanged);
 
-Node *Fix_add(FILE* latex, Node *node, bool &isChanged);
+Node *Fix_add(FILE *latex, Node *node, bool &isChanged);
 
-Node *Fix_sin(FILE* latex, Node *node, bool &isChanged);
+Node *Fix_sin(FILE *latex, Node *node, bool &isChanged);
 
-Node * Fix_pow(FILE *latex, Node *node, bool &isChanged);
+Node *Fix_pow(FILE *latex, Node *node, bool &isChanged);
 
 Node *Fix_ln(FILE *latex, Node *node, bool &isChanged);
 
-Node * Function_optimize(FILE *latex, Node *node, bool &isChanged);
+Node *Function_optimize(FILE *latex, Node *node, bool &isChanged);
 
-void Simplify(FILE* latex, Tree *tree);
-
+void Simplify(FILE *latex, Tree *tree);
 
 //--------------------------------------------------------------------------------------------------\\
 
 Node *Shrink(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->type != OPERATOR)
         return node;
-    
+
     switch (node->value.ival)
     {
-    case ADD: case SUB:
-    case MUL: case DIV:
+    case ADD:
+    case SUB:
+    case MUL:
+    case DIV:
     case POW:
         if (node->left->type == NUM && node->right->type == OPERATOR)
         {
@@ -60,16 +62,16 @@ Node *Shrink(FILE *latex, Node *node, bool &isChanged)
                 }
             }
         }
-        
+
         if (node->left->type == OPERATOR)
             node->left = Shrink(latex, node->left, isChanged);
         if (node->right->type == OPERATOR)
             node->right = Shrink(latex, node->right, isChanged);
-        
+
         if (node->right->type == NUM && node->left->type == NUM)
         {
             Print_before(latex, node);
-            
+
             switch (node->value.ival)
             {
             case ADD:
@@ -89,12 +91,12 @@ Node *Shrink(FILE *latex, Node *node, bool &isChanged)
             default:
                 break;
             }
-            
+
             node->type = NUM;
             free(node->left);
             free(node->right);
             node->right = nullptr;
-            node->left  = nullptr;
+            node->left = nullptr;
             isChanged = true;
             Print_after(latex, node);
             return node;
@@ -110,11 +112,11 @@ Node *Shrink(FILE *latex, Node *node, bool &isChanged)
 
 //--------------------------------------------------------------------------------------------------\\
 
-Node *Fix_mul(FILE* latex, Node *node, bool &isChanged)
+Node *Fix_mul(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
-    if ((node->left->type == NUM && node->left->value.dval == 0.) || 
+
+    if ((node->left->type == NUM && node->left->value.dval == 0.) ||
         (node->right->type == NUM && node->right->value.dval == 0.))
     {
         Print_before(latex, node);
@@ -122,7 +124,7 @@ Node *Fix_mul(FILE* latex, Node *node, bool &isChanged)
         node->value.dval = 0.;
         Node_destruct(node->left);
         Node_destruct(node->right);
-        node->left  = nullptr;
+        node->left = nullptr;
         node->right = nullptr;
         isChanged = true;
         Print_after(latex, node);
@@ -150,18 +152,18 @@ Node *Fix_mul(FILE* latex, Node *node, bool &isChanged)
     }
     if (node->value.ival == MUL && node->left->type == VAR)
     {
-        if(node->right->type == VAR && node->left->value.ival == node->right->value.ival)
+        if (node->right->type == VAR && node->left->value.ival == node->right->value.ival)
         {
             node->value.ival = POW;
             free(node->right);
-            node->right =  Make_node(NUM, DOUBLE_(2), nullptr, nullptr);
+            node->right = Make_node(NUM, DOUBLE_(2), nullptr, nullptr);
             isChanged = true;
             return node;
         }
         if (node->right->type == OPERATOR && node->right->value.ival == POW && (node->right)->left->type == VAR &&
-           (node->right)->right->type == NUM && node->left->value.ival == (node->right)->left->value.ival)
+            (node->right)->right->type == NUM && node->left->value.ival == (node->right)->left->value.ival)
         {
-            Node * tmp = node->right;
+            Node *tmp = node->right;
             free(node->left);
             free(node);
             tmp->right->value.dval += 1;
@@ -177,19 +179,19 @@ Node *Fix_mul(FILE* latex, Node *node, bool &isChanged)
 
 //--------------------------------------------------------------------------------------------------\\
 
-Node *Fix_add(FILE* latex, Node *node, bool &isChanged)
+Node *Fix_add(FILE *latex, Node *node, bool &isChanged)
 {
-    assert(node != nullptr);    
+    assert(node != nullptr);
 
     if (node->left->type == NUM && node->left->value.dval == 0.)
-    {   
+    {
         if (node->value.ival == SUB)
         {
             if (node->right->type == NUM)
             {
                 Print_before(latex, node);
                 Node *tmp = node->right;
-                tmp->value.dval *= (- 1);
+                tmp->value.dval *= (-1);
                 free(node->left);
                 free(node);
                 isChanged = true;
@@ -229,19 +231,19 @@ Node *Fix_add(FILE* latex, Node *node, bool &isChanged)
         if (node->value.ival == SUB)
         {
             node->value.ival = ADD;
-            node->right->value.dval *= (-1); 
+            node->right->value.dval *= (-1);
         }
         else
         {
             node->value.ival = SUB;
-            node->right->value.dval *= (-1); 
+            node->right->value.dval *= (-1);
         }
         isChanged = true;
         return node;
     }
     if (node->value.ival == ADD && node->left->type == VAR)
     {
-        if(node->right->type == VAR && node->left->value.ival == node->right->value.ival)
+        if (node->right->type == VAR && node->left->value.ival == node->right->value.ival)
         {
             node->value.ival = MUL;
             free(node->left);
@@ -250,9 +252,9 @@ Node *Fix_add(FILE* latex, Node *node, bool &isChanged)
             return node;
         }
         if (node->right->type == OPERATOR && node->right->value.ival == MUL && (node->right)->left->type == NUM &&
-           (node->right)->right->type == VAR && node->left->value.ival == (node->right)->right->value.ival)
+            (node->right)->right->type == VAR && node->left->value.ival == (node->right)->right->value.ival)
         {
-            Node * tmp = node->right;
+            Node *tmp = node->right;
             free(node->left);
             free(node);
             tmp->left->value.dval += 1;
@@ -262,15 +264,16 @@ Node *Fix_add(FILE* latex, Node *node, bool &isChanged)
         else
             return node;
     }
-    else return node;
+    else
+        return node;
 }
 
 //--------------------------------------------------------------------------------------------------\\
 
-Node *Fix_sin(FILE* latex, Node *node, bool &isChanged)
+Node *Fix_sin(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->left->type == NUM && node->left->value.dval == 0.)
     {
         Print_before(latex, node);
@@ -287,10 +290,10 @@ Node *Fix_sin(FILE* latex, Node *node, bool &isChanged)
 
 //--------------------------------------------------------------------------------------------------\\
 
-Node * Fix_pow(FILE *latex, Node *node, bool &isChanged)
+Node *Fix_pow(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->right->type == NUM)
     {
         if (node->right->value.dval == 0.)
@@ -315,7 +318,7 @@ Node * Fix_pow(FILE *latex, Node *node, bool &isChanged)
             return tmp;
         }
     }
-    else if (node->left->type == NUM) 
+    else if (node->left->type == NUM)
     {
         if (node->left->value.dval == 0.)
         {
@@ -348,7 +351,7 @@ Node * Fix_pow(FILE *latex, Node *node, bool &isChanged)
 Node *Fix_ln(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->left->type == NUM && node->left->value.dval == 1.)
     {
         Print_before(latex, node);
@@ -380,7 +383,7 @@ Node *Fix_ln(FILE *latex, Node *node, bool &isChanged)
 Node *Rotate_node(Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->right != nullptr)
     {
         if ((node->value.ival == ADD || node->value.ival == MUL) && node->right->type == NUM && node->left->type != NUM)
@@ -416,18 +419,18 @@ Node *Rotate_node(Node *node, bool &isChanged)
 
 //--------------------------------------------------------------------------------------------------\\
 
-Node * Function_optimize(FILE *latex, Node *node, bool &isChanged)
+Node *Function_optimize(FILE *latex, Node *node, bool &isChanged)
 {
     assert(node != nullptr);
-    
+
     if (node->type != OPERATOR)
         return node;
-    
+
     if (node->left != nullptr)
         node->left = Function_optimize(latex, node->left, isChanged);
     if (node->right != nullptr)
         node->right = Function_optimize(latex, node->right, isChanged);
-    
+
     if (node->value.ival == ADD || node->value.ival == SUB)
         node = Fix_add(latex, node, isChanged);
     if (node->type == OPERATOR && (node->value.ival == MUL || node->value.ival == DIV))
@@ -440,21 +443,19 @@ Node * Function_optimize(FILE *latex, Node *node, bool &isChanged)
         node = Fix_ln(latex, node, isChanged);
     if (node->type == OPERATOR)
         node = Rotate_node(node, isChanged);
-    
+
     return node;
 }
 
-
-
 //--------------------------------------------------------------------------------------------------\\
 
-void Simplify(FILE* latex, Tree *tree)
+void Simplify(FILE *latex, Tree *tree)
 {
     assert(latex != nullptr);
     assert(tree != nullptr);
-    
+
     bool isChanged = true;
-    while(isChanged == true)
+    while (isChanged == true)
     {
         isChanged = false;
         tree->root = Shrink(latex, tree->root, isChanged);
